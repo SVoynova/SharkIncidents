@@ -5,6 +5,21 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.colors import qualitative
 
+
+# ─────────────────────────────────────────────────────────
+# 0) CREATE GLOBALVARIABLES 
+# ─────────────────────────────────────────────────────────
+
+# Define a consistent color palette for all charts
+color_palette = {
+    "Fatal Incidents": "#E74C3C",  # Light red for fatal incidents (dangerous/severe)
+    "Non-Fatal Incidents": "#3498DB",  # Light blue for non-fatal incidents (calmer)
+    "Provoked": "#F5B041",  # Orange for provoked incidents
+    "Unprovoked": "#58D68D",  # Green for unprovoked incidents
+    "Unknown": "#7F8C8D"  # Neutral gray for unknown
+}
+
+
 # ─────────────────────────────────────────────────────────
 # 1) LOAD DATA (TWO DIFFERENT DATAFRAMES)
 # ─────────────────────────────────────────────────────────
@@ -25,6 +40,9 @@ cols_to_lower = [
 for col in cols_to_lower:
     if col in data.columns:
         data[col] = data[col].astype(str).str.lower()
+
+# Filter out rows where Victim.gender is not "male" or "female"
+data = data[data['Victim.gender'].isin(['male', 'female'])]
 
 # Create 'Fatal' flags if we have Victim.injury
 if 'Victim.injury' in data.columns:
@@ -491,6 +509,18 @@ def update_filtered_map(selected_column):
         trace.visible = updated_visibility[i]
         trace.showlegend = updated_showlegend[i]
 
+    # Define the new color scheme
+    color_map = {
+        "provoked": "#F5B041",  # Orange for provoked incidents
+        "unprovoked": "#58D68D",  # Green for unprovoked incidents
+        "unknown": "#7F8C8D"  # Neutral gray for unknown
+    }
+
+    # Apply colors based on the Provoked/Unprovoked classification
+    for trace in updated_map_fig.data:
+        if trace.name in color_map:
+            trace.marker.color = color_map[trace.name]
+
     return updated_map_fig
 
 
@@ -552,8 +582,8 @@ def update_chart(chart_mode, log_scale, start_year, end_year):
                 "Incident_Type": "Type of Incident"
             },
             color_discrete_map={
-                "Fatal Incidents": "lightcoral",
-                "Non-Fatal Incidents": "lightblue"
+                "Fatal Incidents": "#E74C3C",
+                "Non-Fatal Incidents": "#3498DB"
             }
         )
         fig.update_traces(
@@ -577,7 +607,7 @@ def update_chart(chart_mode, log_scale, start_year, end_year):
             y="Fatal_Incidents",
             title=f"Bar Chart: Fatal Incidents Only ({start_year}-{end_year})",
             labels={"State": "State", "Fatal_Incidents": "Number of Fatal Incidents"},
-            color_discrete_sequence=["lightcoral"]
+            color_discrete_sequence=["#E74C3C"]
         )
         fig.update_yaxes(range=[0, 450])
 
@@ -591,7 +621,7 @@ def update_chart(chart_mode, log_scale, start_year, end_year):
             y="Non_Fatal_Incidents",
             title=f"Bar Chart: Non-Fatal Incidents Only ({start_year}-{end_year})",
             labels={"State": "State", "Non_Fatal_Incidents": "Number of Non-Fatal Incidents"},
-            color_discrete_sequence=["lightblue"]
+            color_discrete_sequence=["#3498DB"]
         )
         fig.update_yaxes(range=[0, 450])
 
@@ -630,8 +660,8 @@ def update_chart(chart_mode, log_scale, start_year, end_year):
             title=f"Stacked Bar Chart: Percentage of Fatal vs. Non-Fatal Incidents ({start_year}-{end_year})",
             labels={"Percentage": "Percentage (%)"},
             color_discrete_map={
-                "Fatal Incidents": "lightcoral",
-                "Non-Fatal Incidents": "lightblue"
+                "Fatal Incidents": "#E74C3C",
+                "Non-Fatal Incidents": "#3498DB"
             }
         )
         fig.update_traces(
@@ -662,7 +692,7 @@ def update_heatmap(metric):
         x="Victim.activity",
         y="State",
         z=metric,
-        color_continuous_scale="RdYlGn",
+        color_continuous_scale="Viridis",  # Apply Viridis color scale
         title="Activity-Location Heatmap",
         labels={
             "Victim.activity": "Activity",
@@ -674,7 +704,11 @@ def update_heatmap(metric):
         xaxis_tickangle=45,
         height=600,
         title_x=0.5,
-        margin=dict(l=50, r=50, t=50, b=100)
+        margin=dict(l=50, r=50, t=50, b=100),
+        coloraxis_colorbar=dict(
+            title="Incident Count",  # Add colorbar title
+            ticks="outside"  # Place ticks outside
+        )
     )
     return fig
 
@@ -785,9 +819,9 @@ def update_sp_matrix(selected_state, selected_shark, selected_age_range):
         labels=attribute_labels,
         title="Filtered Scatterplot Matrix (SPLOM)",
         color_discrete_map={
-            'Provoked': '#FFC98B',
-            'Unprovoked': '#F18787',
-            'Unknown': '#9E9E9E'
+            'Provoked': '#F5B041', 
+            'Unprovoked': '#58D68D',
+            'Unknown': '#7F8C8D'
         }
     )
 
@@ -815,6 +849,11 @@ def update_charts(selected_range):
     # Line Chart preprocessing
     yearly_data = filtered_data.groupby(['Date', 'Provoked/unprovoked']).size().reset_index(name='Count')
     line_fig = go.Figure()
+    color_map = {
+        'provoked':  "#F5B041",  # Orange for provoked incidents
+        'unprovoked': "#58D68D",  # Green for unprovoked incidents
+        'Unknown': "#7F8C8D"  # Neutral gray for unknown
+    }
     for incident_type in yearly_data['Provoked/unprovoked'].unique():
         incident_data = yearly_data[yearly_data['Provoked/unprovoked'] == incident_type]
         line_fig.add_trace(
@@ -822,7 +861,9 @@ def update_charts(selected_range):
                 x=incident_data['Date'],
                 y=incident_data['Count'],
                 mode='lines+markers',
-                name=incident_type
+                name=incident_type,
+                line=dict(color=color_map.get(incident_type, '#000000'))  # Default to black if missing
+
             )
         )
     line_fig.update_layout(
@@ -839,6 +880,8 @@ def update_charts(selected_range):
         pie_data,
         values='Count',
         names='Provoked/unprovoked',
+        color='Provoked/unprovoked',  # Match color here
+        color_discrete_map=color_map,  # Apply the custom color map
         hole=0.3  # Makes it a donut chart for a cleaner look
     )
     pie_fig.update_layout(margin=dict(t=15, b=15, l=0, r=0))
